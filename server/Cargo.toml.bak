@@ -6,4 +6,4 @@ edition = "2024"
 [dependencies]
 libp2p = "0.56.0"
 sqlite = "0.37.0"
-uuid = { version = "1.19.0", features = ["v4"] }
+uuid = { version = "1.19.0", features = "v4" }
