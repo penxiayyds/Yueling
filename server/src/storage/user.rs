@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection, Result as SqliteResult}; 
+use sqlite::{params, Connection, Result as SqliteResult}; 
 use crate::core::models::User;
 
 /// 初始化数据库表（首次运行需创建`users`表）
