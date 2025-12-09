@@ -8,7 +8,7 @@ use tokio::net::TcpListener;
 //全局应用状态
 #[derive(Clone)]
 struct AppState {
-    db_conn: Arc<Connection>
+    db_conn: Arc<Connection>,
 }
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
