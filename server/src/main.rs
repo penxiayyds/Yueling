@@ -1,21 +1,34 @@
 mod api;
 mod storage;
-use std::net::{TcpListener, TcpStream};
+mod error;
+use std::net::{TcpListener, TcpStream, SocketAddr};
 use std::io::{Read, Write};
 use std::thread;
+use storage::DbPool;    
+use axum::{Router, routing::post};
+use rusqlite::Connection;
 use std::sync::Arc;
-use tokio::net::TcpListener;
+use tokio::net::TcpListener as OtherTcpListener;
 
-fn main(){      
-     let port = 2025;
-     println!("Starting chat server on port {}", port);
+#[tokio::main] // 异步运行时（tokio full特性已启用）
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    //初始化数据库
+    let db_pool = DbPool::new("server.db")?;
+
+    //构建API路由（注册接口）
+    let app: Router<()> = Router::new()
+        .merge(api::register_routes()) // 注册路由
+        .with_state(db_pool);
+              
+    let port = 2025;
+    println!("Starting chat server on port {}", port);
 
     // 启动TCP服务器
-     thread::spawn(move || {
-         println!("TCP server listening on port {}", port);
-         if let Err(e) = run_tcp_server(port) {
-             eprintln!("TCP server error: {}", e);
-        }
+    thread::spawn(move || {
+        println!("TCP server listening on port {}", port);
+        if let Err(e) = run_tcp_server(port) {
+            eprintln!("TCP server error: {}", e);
+       }
     });
 
     // 保持主线程运行
