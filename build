@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+# 先构建 server
+cd server && cargo build
+# 再构建 Yueling
+cd ../Yueling && cargo tauri build
