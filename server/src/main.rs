@@ -1,82 +1,49 @@
 mod api;
 mod storage;
 mod error;
-use std::net::{TcpListener, TcpStream, SocketAddr};
-use std::io::{Read, Write};
-use std::thread;
-use storage::DbPool;    
-use axum::{Router, routing::post};
-use rusqlite::Connection;
+mod websocket;
+use storage::DbPool;
+use axum::{Router, extract::State, response::Json};
+use tokio::net::TcpListener;
 use std::sync::Arc;
-use tokio::net::TcpListener as OtherTcpListener;
+use websocket::WsServer;
 
 #[tokio::main] // 异步运行时（tokio full特性已启用）
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    //初始化数据库
+    // 初始化数据库
     let db_pool = DbPool::new("server.db")?;
 
-    //构建API路由（注册接口）
-    let app: Router<()> = Router::new()
+    // 构建API路由
+    let app = Router::new()
         .merge(api::register_routes()) // 注册路由
-        .with_state(db_pool);
-              
-    let port = 2025;
-    println!("Starting chat server on port {}", port);
+        .with_state(db_pool.clone());
 
-    // 启动TCP服务器
-    thread::spawn(move || {
-        println!("TCP server listening on port {}", port);
-        if let Err(e) = run_tcp_server(port) {
-            eprintln!("TCP server error: {}", e);
-       }
+    // 启动API服务器
+    let api_port = 2025;
+    let api_addr = format!("0.0.0.0:{}", api_port);
+    let api_listener = TcpListener::bind(&api_addr).await?;
+    println!("API server listening on http://{}", api_addr);
+    
+    tokio::spawn(async move {
+        axum::serve(api_listener, app).await.unwrap();
+    });
+
+    // 启动WebSocket服务器
+    let ws_server = WsServer::new();
+    let ws_port = 2026;
+    let ws_addr = format!("0.0.0.0:{}", ws_port);
+    println!("WebSocket server listening on ws://{}", ws_addr);
+    
+    tokio::spawn(async move {
+        if let Err(e) = ws_server.start(&ws_addr).await {
+            eprintln!("WebSocket server error: {}", e);
+        }
     });
 
     // 保持主线程运行
-    loop {
-        std::thread::sleep(std::time::Duration::from_secs(1));
-    }
-}
-
-// 运行TCP服务器
-fn run_tcp_server(port: u16) -> std::io::Result<()> {
-    let listener = TcpListener::bind(&format!("0.0.0.0:{}", port))?;
+    println!("Server started successfully!");
+    tokio::signal::ctrl_c().await?;
+    println!("Server shutting down...");
     
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                println!("TCP client connected: {}", stream.peer_addr()?);
-                thread::spawn(move || {
-                    if let Err(e) = handle_tcp_client(stream) {
-                        eprintln!("TCP client error: {}", e);
-                    }
-                });
-            }
-            Err(e) => {
-                eprintln!("TCP connection error: {}", e);
-            }
-        }
-    }
-    
-    Ok(())
-}
-
-// 处理TCP客户端连接
-fn handle_tcp_client(mut stream: TcpStream) -> std::io::Result<()> {
-    let mut buffer = [0u8; 1024];
-    
-    loop {
-        let n = stream.read(&mut buffer)?;
-        if n == 0 {
-            break;
-        }
-        
-        let message = String::from_utf8_lossy(&buffer[..n]);
-        println!("Received TCP message: {}", message);
-        
-        // 简单回显
-        stream.write_all(&buffer[..n])?;
-    }
-    
-    println!("TCP client disconnected: {}", stream.peer_addr()?);
     Ok(())
 }
