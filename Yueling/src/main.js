@@ -8,7 +8,7 @@ let currentChatContact = null;
 const API_CONFIG = {
     tcp: {
         baseUrl: 'http://localhost:2025',
-        wsUrl: 'ws://localhost:2026'
+        wsUrl: 'ws://localhost:2025'
     },
     currentProtocol: 'tcp' // 统一使用TCP协议
 };
