@@ -64,7 +64,102 @@ pub struct LoginResponse {
     pub username: Option<String>, // 成功时返回用户名
 }
 
-// WebSocket处理器
+// 好友功能相关结构体
+
+#[derive(Deserialize)]
+pub struct SearchUsersRequest {
+    pub query: String,
+}
+
+#[derive(Serialize)]
+pub struct SearchUsersResponse {
+    pub success: bool,
+    pub message: String,
+    pub users: Vec<SearchUser>,
+}
+
+#[derive(Serialize)]
+pub struct SearchUser {
+    pub id: String,
+    pub username: String,
+}
+
+#[derive(Deserialize)]
+pub struct SendFriendRequestRequest {
+    pub from_user_id: String,
+    pub to_username: String,
+}
+
+#[derive(Serialize)]
+pub struct SendFriendRequestResponse {
+    pub success: bool,
+    pub message: String,
+    pub request_id: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct GetFriendRequestsRequest {
+    pub user_id: String,
+}
+
+#[derive(Serialize)]
+pub struct GetFriendRequestsResponse {
+    pub success: bool,
+    pub message: String,
+    pub requests: Vec<FriendRequestInfo>,
+}
+
+#[derive(Serialize)]
+pub struct FriendRequestInfo {
+    pub id: String,
+    pub from_user_id: String,
+    pub from_username: String,
+    pub created_at: i64,
+}
+
+#[derive(Deserialize)]
+pub struct RespondToFriendRequestRequest {
+    pub request_id: String,
+    pub from_user_id: String,
+    pub response: String, // "accepted" or "rejected"
+}
+
+#[derive(Serialize)]
+pub struct RespondToFriendRequestResponse {
+    pub success: bool,
+    pub message: String,
+}
+
+#[derive(Deserialize)]
+pub struct GetFriendsRequest {
+    pub user_id: String,
+}
+
+#[derive(Serialize)]
+pub struct GetFriendsResponse {
+    pub success: bool,
+    pub message: String,
+    pub friends: Vec<FriendInfo>,
+}
+
+#[derive(Serialize)]
+pub struct FriendInfo {
+    pub id: String,
+    pub username: String,
+}
+
+#[derive(Deserialize)]
+pub struct RemoveFriendRequest {
+    pub user_id: String,
+    pub friend_id: String,
+}
+
+#[derive(Serialize)]
+pub struct RemoveFriendResponse {
+    pub success: bool,
+    pub message: String,
+}
+
 // WebSocket处理器
 async fn ws_handler(
     upgrade: WebSocketUpgrade,
@@ -183,6 +278,140 @@ pub async fn login_handler(
     }))
 }
 
+// 好友功能处理器
+
+// 搜索用户
+pub async fn search_users_handler(
+    State(state): State<AppState>,
+    Json(req): Json<SearchUsersRequest>,
+) -> Result<Json<SearchUsersResponse>, AppError> {
+    let users = state.db_pool.search_users(&req.query)
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+    let search_users: Vec<SearchUser> = users.into_iter().map(|user| SearchUser {
+        id: user.id,
+        username: user.username,
+    }).collect();
+
+    Ok(Json(SearchUsersResponse {
+        success: true,
+        message: "搜索成功".into(),
+        users: search_users,
+    }))
+}
+
+// 发送好友请求
+pub async fn send_friend_request_handler(
+    State(state): State<AppState>,
+    Json(req): Json<SendFriendRequestRequest>,
+) -> Result<Json<SendFriendRequestResponse>, AppError> {
+    let result = state.db_pool.send_friend_request(&req.from_user_id, &req.to_username)
+        .map_err(|e| {
+            match e {
+                rusqlite::Error::SqliteFailure(_, Some(msg)) if msg == "Already friends" => {
+                    AppError::InvalidCredentials("已经是好友".into())
+                }
+                rusqlite::Error::SqliteFailure(_, Some(msg)) if msg == "Friend request already sent" => {
+                    AppError::InvalidCredentials("好友请求已发送".into())
+                }
+                _ => AppError::Database(e.to_string())
+            }
+        })?;
+
+    Ok(Json(SendFriendRequestResponse {
+        success: true,
+        message: "好友请求发送成功".into(),
+        request_id: Some(result.id),
+    }))
+}
+
+// 获取收到的好友请求
+pub async fn get_friend_requests_handler(
+    State(state): State<AppState>,
+    Json(req): Json<GetFriendRequestsRequest>,
+) -> Result<Json<GetFriendRequestsResponse>, AppError> {
+    let requests = state.db_pool.get_received_friend_requests(&req.user_id)
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+    let request_infos: Vec<FriendRequestInfo> = requests.into_iter().map(|req| {
+        // 这里需要获取发送者的用户名，但为了简化，我们暂时只返回ID
+        // 实际应用中应该联表查询获取用户名
+        FriendRequestInfo {
+            id: req.id,
+            from_user_id: req.from_user_id,
+            from_username: "".to_string(), // 需要额外查询
+            created_at: req.created_at,
+        }
+    }).collect();
+
+    Ok(Json(GetFriendRequestsResponse {
+        success: true,
+        message: "获取好友请求成功".into(),
+        requests: request_infos,
+    }))
+}
+
+// 响应好友请求
+pub async fn respond_to_friend_request_handler(
+    State(state): State<AppState>,
+    Json(req): Json<RespondToFriendRequestRequest>,
+) -> Result<Json<RespondToFriendRequestResponse>, AppError> {
+    state.db_pool.respond_to_friend_request(&req.request_id, &req.from_user_id, &req.response)
+        .map_err(|e| {
+            match e {
+                rusqlite::Error::SqliteFailure(_, Some(msg)) if msg == "Friend request already processed" => {
+                    AppError::InvalidCredentials("好友请求已处理".into())
+                }
+                _ => AppError::Database(e.to_string())
+            }
+        })?;
+
+    let message = if req.response == "accepted" {
+        "好友请求已接受".into()
+    } else {
+        "好友请求已拒绝".into()
+    };
+
+    Ok(Json(RespondToFriendRequestResponse {
+        success: true,
+        message,
+    }))
+}
+
+// 获取好友列表
+pub async fn get_friends_handler(
+    State(state): State<AppState>,
+    Json(req): Json<GetFriendsRequest>,
+) -> Result<Json<GetFriendsResponse>, AppError> {
+    let friends = state.db_pool.get_friends(&req.user_id)
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+    let friend_infos: Vec<FriendInfo> = friends.into_iter().map(|friend| FriendInfo {
+        id: friend.id,
+        username: friend.username,
+    }).collect();
+
+    Ok(Json(GetFriendsResponse {
+        success: true,
+        message: "获取好友列表成功".into(),
+        friends: friend_infos,
+    }))
+}
+
+// 删除好友
+pub async fn remove_friend_handler(
+    State(state): State<AppState>,
+    Json(req): Json<RemoveFriendRequest>,
+) -> Result<Json<RemoveFriendResponse>, AppError> {
+    state.db_pool.remove_friend(&req.user_id, &req.friend_id)
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+    Ok(Json(RemoveFriendResponse {
+        success: true,
+        message: "删除好友成功".into(),
+    }))
+}
+
 // 导出路由
 pub fn register_routes(db_pool: DbPool) -> Router {
     // 创建共享应用状态
@@ -192,5 +421,12 @@ pub fn register_routes(db_pool: DbPool) -> Router {
         .route("/register", post(register_handler))
         .route("/login", post(login_handler))
         .route("/ws", get(ws_handler))
+        // 好友功能路由
+        .route("/search-users", post(search_users_handler))
+        .route("/send-friend-request", post(send_friend_request_handler))
+        .route("/get-friend-requests", post(get_friend_requests_handler))
+        .route("/respond-to-friend-request", post(respond_to_friend_request_handler))
+        .route("/get-friends", post(get_friends_handler))
+        .route("/remove-friend", post(remove_friend_handler))
         .with_state(app_state)
 }

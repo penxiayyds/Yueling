@@ -18,6 +18,8 @@ pub enum AppError {
     InvalidCredentials(String),
     #[error("内部服务器错误: {0}")]
     Internal(String),
+    #[error("好友操作错误: {0}")]
+    FriendOperation(String),
 }
 
 // 实现axum的错误转换
@@ -29,6 +31,7 @@ impl IntoResponse for AppError {
             AppError::Bcrypt(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
             AppError::InvalidCredentials(e) => (StatusCode::UNAUTHORIZED, e),
             AppError::Internal(e) => (StatusCode::INTERNAL_SERVER_ERROR, e),
+            AppError::FriendOperation(e) => (StatusCode::BAD_REQUEST, e),
         };
         let body = Json(json!({ "success": false, "message": msg }));
         (status, body).into_response()
