@@ -120,7 +120,7 @@ pub struct FriendRequestInfo {
 #[derive(Deserialize)]
 pub struct RespondToFriendRequestRequest {
     pub request_id: String,
-    pub from_user_id: String,
+    pub user_id: String,
     pub response: String, // "accepted" or "rejected"
 }
 
@@ -158,6 +158,19 @@ pub struct RemoveFriendRequest {
 pub struct RemoveFriendResponse {
     pub success: bool,
     pub message: String,
+}
+
+// 用户存在检查
+#[derive(Deserialize)]
+pub struct UserExistsRequest {
+    pub user_id: String,
+}
+
+#[derive(Serialize)]
+pub struct UserExistsResponse {
+    pub success: bool,
+    pub message: String,
+    pub exists: bool,
 }
 
 // WebSocket处理器
@@ -227,8 +240,8 @@ pub async fn register_handler(
     // 调用存储层注册用户
     let user = state.db_pool.register_user(&req.username, "", &req.password)
         .map_err(|e| match e {
-            rusqlite::Error::QueryReturnedNoRows => 
-                AppError::UserExists("用户名已被注册".into()),
+            rusqlite::Error::SqliteFailure(_, Some(msg)) if msg.contains("用户名已存在") =>
+                AppError::UserExists(msg),
             _ => AppError::Database(e.to_string()),
         })?;
 
@@ -308,6 +321,9 @@ pub async fn send_friend_request_handler(
     let result = state.db_pool.send_friend_request(&req.from_user_id, &req.to_username)
         .map_err(|e| {
             match e {
+                rusqlite::Error::QueryReturnedNoRows => {
+                    AppError::FriendOperation("目标用户不存在".into())
+                }
                 rusqlite::Error::SqliteFailure(_, Some(msg)) if msg == "Already friends" => {
                     AppError::InvalidCredentials("已经是好友".into())
                 }
@@ -356,7 +372,7 @@ pub async fn respond_to_friend_request_handler(
     State(state): State<AppState>,
     Json(req): Json<RespondToFriendRequestRequest>,
 ) -> Result<Json<RespondToFriendRequestResponse>, AppError> {
-    state.db_pool.respond_to_friend_request(&req.request_id, &req.from_user_id, &req.response)
+    state.db_pool.respond_to_friend_request(&req.request_id, &req.user_id, &req.response)
         .map_err(|e| {
             match e {
                 rusqlite::Error::SqliteFailure(_, Some(msg)) if msg == "Friend request already processed" => {
@@ -424,9 +440,25 @@ pub fn register_routes(db_pool: DbPool) -> Router {
         // 好友功能路由
         .route("/search-users", post(search_users_handler))
         .route("/send-friend-request", post(send_friend_request_handler))
+        .route("/friends/add", post(send_friend_request_handler))
         .route("/get-friend-requests", post(get_friend_requests_handler))
         .route("/respond-to-friend-request", post(respond_to_friend_request_handler))
         .route("/get-friends", post(get_friends_handler))
         .route("/remove-friend", post(remove_friend_handler))
         .with_state(app_state)
+}
+
+// 检查用户是否存在的处理器
+pub async fn user_exists_handler(
+    State(state): State<AppState>,
+    Json(req): Json<UserExistsRequest>,
+) -> Result<Json<UserExistsResponse>, AppError> {
+    let exists = state.db_pool.user_exists_by_id(&req.user_id)
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+    Ok(Json(UserExistsResponse {
+        success: true,
+        message: "检查完成".into(),
+        exists,
+    }))
 }
