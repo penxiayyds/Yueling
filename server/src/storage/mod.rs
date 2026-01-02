@@ -195,18 +195,20 @@ impl DbPool {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs() as i64;
+        // 生成唯一占位邮箱（避免使用空字符串导致 UNIQUE 约束冲突）
+        let email_placeholder = format!("{}@local", user_id);
 
         conn.execute(
             "INSERT INTO users (id, username, email, password_hash, created_at) 
              VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![user_id, username, "", &password_hash, created_at],
+            params![user_id, username, &email_placeholder, &password_hash, created_at],
         )?;
 
         // 返回新用户（不含敏感信息）
         Ok(User {
             id: user_id,
             username: username.to_string(),
-            email: "".to_string(), // 返回空邮箱
+            email: email_placeholder,
             password_hash,
             created_at,
         })

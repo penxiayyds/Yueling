@@ -8,7 +8,7 @@ let currentChatContact = null;
 const API_CONFIG = {
     tcp: {
         baseUrl: 'http://localhost:2025',
-        wsUrl: 'ws://localhost:2025'
+        wsUrl: 'ws://localhost:2025/ws'
     },
     currentProtocol: 'tcp' // 统一使用TCP协议
 };
@@ -43,6 +43,9 @@ window.addEventListener("DOMContentLoaded", () => {
     
     // 检查本地存储中的用户信息
     checkLocalStorage();
+    
+    // 应用启动时尝试连接后端（若已有连接则会被跳过）
+    connectWebSocket();
 });
 
 // 初始化DOM元素
@@ -207,8 +210,23 @@ async function handleLogin(e) {
             },
             body: JSON.stringify({ username, password }),
         });
-        const result = await response.json();
-        
+        if (!response.ok) {
+            const text = await response.text();
+            console.error('Login failed:', response.status, text);
+            showToast(`登录失败：${response.status} ${text}`, 'error');
+            return;
+        }
+
+        let result;
+        try {
+            result = await response.json();
+        } catch (err) {
+            const text = await response.text();
+            console.error('Failed to parse login response as JSON:', err, text);
+            showToast('登录失败：服务器返回了无法解析的响应', 'error');
+            return;
+        }
+
         if (result.success) {
             currentUser = {
                 id: result.user_id,
@@ -222,7 +240,8 @@ async function handleLogin(e) {
             showChatInterface();
             connectWebSocket();
         } else {
-            showToast(result.message, 'error');
+            console.error('Login returned error payload:', result);
+            showToast(result.message || '登录失败', 'error');
         }
     } catch (error) {
         showToast('登录失败，请检查网络连接', 'error');
@@ -253,19 +272,36 @@ async function handleRegister(e) {
             },
             body: JSON.stringify({ username, password }),
         });
-        const result = await response.json();
-        
+        // 如果返回非 2xx，先读取原始文本以便日志和提示
+        if (!response.ok) {
+            const text = await response.text();
+            console.error('Register failed:', response.status, text);
+            showToast(`注册失败：${response.status} ${text}`, 'error');
+            return;
+        }
+
+        let result;
+        try {
+            result = await response.json();
+        } catch (err) {
+            const text = await response.text();
+            console.error('Failed to parse register response as JSON:', err, text);
+            showToast('注册失败：服务器返回了无法解析的响应', 'error');
+            return;
+        }
+
         if (result.success) {
             showToast('注册成功，请登录', 'success');
             showContainer('login');
             // 清空注册表单
             registerForm.reset();
         } else {
-            showToast(result.message, 'error');
+            console.error('Register returned error payload:', result);
+            showToast(result.message || '注册失败', 'error');
         }
     } catch (error) {
         showToast('注册失败，请检查网络连接', 'error');
-        console.error('Register error:', error);
+        console.error('Register error (network):', error);
     }
 }
 
@@ -318,6 +354,11 @@ function showChatInterface() {
 
 // 连接WebSocket
 function connectWebSocket() {
+    // 避免重复创建连接：若已有连接处于连接中或已打开状态，则跳过
+    if (wsConnection && (wsConnection.readyState === WebSocket.OPEN || wsConnection.readyState === WebSocket.CONNECTING)) {
+        console.log('WebSocket 已在连接中或已连接，跳过新连接');
+        return;
+    }
     try {
         const wsUrl = API_CONFIG.tcp.wsUrl;
         wsConnection = new WebSocket(wsUrl);
@@ -325,7 +366,10 @@ function connectWebSocket() {
         wsConnection.onopen = () => {
             console.log('WebSocket连接成功');
             isConnected = true;
-            showToast('WebSocket连接成功', 'success');
+            // 仅在已有登录用户时显示连接成功提示，避免启动或注册页面产生噪音
+            if (currentUser) {
+                showToast('WebSocket连接成功', 'success');
+            }
         };
         
         wsConnection.onmessage = (event) => {
@@ -335,7 +379,12 @@ function connectWebSocket() {
         wsConnection.onclose = () => {
             console.log('WebSocket连接关闭');
             isConnected = false;
-            showToast('WebSocket连接已关闭', 'info');
+            // 仅在用户已登录时显示连接关闭提示
+            if (currentUser) {
+                showToast('WebSocket连接已关闭', 'info');
+            } else {
+                console.log('WebSocket closed (no current user)');
+            }
             // 尝试重连
             setTimeout(() => {
                 connectWebSocket();
@@ -345,7 +394,12 @@ function connectWebSocket() {
         wsConnection.onerror = (error) => {
             console.error('WebSocket错误:', error);
             isConnected = false;
-            showToast('WebSocket连接错误', 'error');
+            // 仅在用户已登录时显示错误提示
+            if (currentUser) {
+                showToast('WebSocket连接错误', 'error');
+            } else {
+                console.log('WebSocket error (no current user)');
+            }
         };
     } catch (error) {
         console.error('WebSocket连接失败:', error);
