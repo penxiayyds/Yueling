@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::broadcast;
 use uuid::Uuid;
-use server::utils::crypto::CryptoService;
+use server::utils::crypto_v2::CryptoService;
 
 // 导入子模块
 mod user;
