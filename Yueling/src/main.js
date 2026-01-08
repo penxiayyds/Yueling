@@ -784,7 +784,7 @@ function createContactItem(contact) {
 // 加载离线消息
 async function loadOfflineMessages() {
     try {
-        const response = await fetch(`${API_CONFIG.tcp.baseUrl}/messages/unread`, {
+        const response = await fetch(`${API_CONFIG.BASE_URL}/messages/unread`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
@@ -808,7 +808,7 @@ async function loadOfflineMessages() {
             
             // 标记为已读
             const messageIds = result.messages.map(msg => msg.id);
-            await fetch(`${API_CONFIG.tcp.baseUrl}/messages/read`, {
+            await fetch(`${API_CONFIG.BASE_URL}/messages/read`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1034,7 +1034,7 @@ function loadFriendRequests() {
         return;
     }
 
-    fetch(`${API_CONFIG.tcp.baseUrl}/get-friend-requests`, {
+    fetch(`${API_CONFIG.BASE_URL}/get-friend-requests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: currentUser.id })
