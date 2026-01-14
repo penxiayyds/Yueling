@@ -57,18 +57,10 @@ pub async fn register_handler(
     State(state): State<AppState>, // 注入共享状态
     Json(req): Json<RegisterRequest>, // 解析JSON请求体
 ) -> Result<Json<RegisterResponse>, AppError> {
-    // 使用私有算法和公有算法加密密码
-    let encrypted_bytes = state.crypto_service.encrypt(req.password.as_bytes())
-        .map_err(|e| AppError::Internal(format!("加密失败: {}", e)))?;
-    let encrypted_hex = hex::encode(encrypted_bytes);
-    // 解密回原始密码
-    let decrypted_bytes = state.crypto_service.decrypt(&hex::decode(&encrypted_hex).unwrap())
-        .map_err(|e| AppError::Internal(format!("解密失败: {}", e)))?;
-    let decrypted_password = String::from_utf8(decrypted_bytes)
-        .map_err(|e| AppError::Internal(format!("UTF-8解码失败: {}", e)))?;
+
     
     // 调用存储层注册用户（使用原始密码）
-    let user = state.db_pool.register_user(&req.username, "", &decrypted_password)
+    let user = state.db_pool.register_user(&req.username, "", &req.password)
         .map_err(|e| match e {
             rusqlite::Error::SqliteFailure(_, Some(msg)) if msg.contains("用户名已存在") =>
                 AppError::UserExists(msg),
@@ -89,14 +81,7 @@ pub async fn login_handler(
     Json(req): Json<LoginRequest>, // 解析JSON请求体
 ) -> Result<Json<LoginResponse>, AppError> {
     // 使用私有算法和公有算法加密密码（与注册时相同）
-    let encrypted_bytes = state.crypto_service.encrypt(req.password.as_bytes())
-        .map_err(|e| AppError::Internal(format!("加密失败: {}", e)))?;
-    let encrypted_hex = hex::encode(encrypted_bytes);
-    // 解密回原始密码
-    let decrypted_bytes = state.crypto_service.decrypt(&hex::decode(&encrypted_hex).unwrap())
-        .map_err(|e| AppError::Internal(format!("解密失败: {}", e)))?;
-    let decrypted_password = String::from_utf8(decrypted_bytes)
-        .map_err(|e| AppError::Internal(format!("UTF-8解码失败: {}", e)))?;
+
     
     // 调用存储层获取用户
     let conn = state.db_pool.0.lock().unwrap();
@@ -118,7 +103,7 @@ pub async fn login_handler(
 
     // 验证密码（使用解密后的原始密码）
     let (id, username, password_hash) = user;
-    if !verify(&decrypted_password, &password_hash).map_err(|_| AppError::Internal("密码验证失败".into()))? {
+    if !verify(&req.password, &password_hash).map_err(|_| AppError::Internal("密码验证失败".into()))? {
         return Err(AppError::InvalidCredentials("用户名或密码错误".into()));
     }
 
