@@ -12,6 +12,7 @@ pub struct User {
     pub email: String,       // 邮箱（唯一）
     pub password_hash: String, // bcrypt哈希后的密码
     pub created_at: i64,     // 创建时间戳（Unix秒）
+    pub avatar_url: String,  // 头像URL
 }
 
 // 消息模型
@@ -81,7 +82,8 @@ impl DbPool {
                 username TEXT UNIQUE NOT NULL,
                 email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
-                created_at INTEGER NOT NULL
+                created_at INTEGER NOT NULL,
+                avatar_url TEXT DEFAULT ''
             )",
             [],
         )?;
@@ -211,6 +213,7 @@ impl DbPool {
             email: email_placeholder,
             password_hash,
             created_at,
+            avatar_url: String::new(),
         })
     }
     
@@ -291,7 +294,7 @@ impl DbPool {
     pub fn get_friends(&self, user_id: &str) -> Result<Vec<User>> {
         let conn = self.0.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT u.id, u.username, u.email, u.password_hash, u.created_at 
+            "SELECT u.id, u.username, u.email, u.password_hash, u.created_at, u.avatar_url 
              FROM users u 
              JOIN friendships f ON u.id = f.friend_id 
              WHERE f.user_id = ? AND f.status = 'accepted'"
@@ -304,6 +307,7 @@ impl DbPool {
                 email: row.get(2)?,
                 password_hash: row.get(3)?,
                 created_at: row.get(4)?,
+                avatar_url: row.get(5)?,
             })
         })?
         .filter_map(Result::ok)
@@ -318,7 +322,7 @@ impl DbPool {
     pub fn search_users(&self, query: &str) -> Result<Vec<User>> {
         let conn = self.0.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, username, email, password_hash, created_at 
+            "SELECT id, username, email, password_hash, created_at, avatar_url 
              FROM users 
              WHERE username LIKE ? OR id LIKE ? 
              LIMIT 10"
@@ -334,6 +338,7 @@ impl DbPool {
                     email: row.get(2)?,
                     password_hash: row.get(3)?,
                     created_at: row.get(4)?,
+                    avatar_url: row.get(5)?,
                 })
             },
         )?
@@ -522,5 +527,34 @@ impl DbPool {
         )?;
         
         Ok(())
+    }
+
+    // 更新用户头像URL
+    pub fn update_user_avatar(&self, user_id: &str, avatar_url: &str) -> Result<()> {
+        let conn = self.0.lock().unwrap();
+        conn.execute(
+            "UPDATE users SET avatar_url = ? WHERE id = ?",
+            params![avatar_url, user_id],
+        )?;
+        Ok(())
+    }
+
+    // 根据ID获取用户
+    pub fn get_user_by_id(&self, user_id: &str) -> Result<User> {
+        let conn = self.0.lock().unwrap();
+        conn.query_row(
+            "SELECT id, username, email, password_hash, created_at, avatar_url FROM users WHERE id = ?",
+            [user_id],
+            |row| {
+                Ok(User {
+                    id: row.get(0)?,
+                    username: row.get(1)?,
+                    email: row.get(2)?,
+                    password_hash: row.get(3)?,
+                    created_at: row.get(4)?,
+                    avatar_url: row.get(5)?,
+                })
+            },
+        )
     }
 }

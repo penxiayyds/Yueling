@@ -4,6 +4,7 @@ export interface Friend {
     id: string
     name: string
     status: 'online' | 'offline'
+    avatar_url?: string
 }
 
 export interface FriendRequest {
@@ -24,7 +25,8 @@ export class FriendService {
                 this.friends = result.friends.map((f: any) => ({
                     id: f.id,
                     name: f.username,
-                    status: 'online'
+                    status: 'online',
+                    avatar_url: f.avatar_url
                 }))
                 this.saveFriendsToStorage()
                 return this.friends

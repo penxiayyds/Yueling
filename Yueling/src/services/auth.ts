@@ -3,6 +3,7 @@ import { api } from './api'
 export interface User {
     id: string
     username: string
+    avatar_url?: string
 }
 
 export class AuthService {
@@ -11,8 +12,17 @@ export class AuthService {
     async login(username: string, password: string): Promise<User> {
         const result = await api.post('/login', { username, password })
         if (result.success) {
-            const user = { id: result.user_id, username: result.username }
+            // 先创建基本用户对象
+            const user = { id: result.user_id, username: result.username, avatar_url: '' }
             this.setCurrentUser(user)
+            // 获取用户详细信息（包括头像）
+            try {
+                const userInfo = await this.getUserInfo(result.user_id)
+                user.avatar_url = userInfo.avatar_url || ''
+                this.setCurrentUser(user)
+            } catch (error) {
+                console.error('获取用户头像失败:', error)
+            }
             return user
         } else {
             throw new Error(result.message || '登录失败')
@@ -64,6 +74,41 @@ export class AuthService {
         } catch (error) {
             console.error('检查用户存在性失败:', error)
             return false
+        }
+    }
+
+    async getUserInfo(userId: string): Promise<{ avatar_url?: string }> {
+        try {
+            const result = await api.get(`/user/${userId}`)
+            if (result.success && result.user) {
+                return result.user
+            }
+            return {}
+        } catch (error) {
+            console.error('获取用户信息失败:', error)
+            return {}
+        }
+    }
+
+    async uploadAvatar(userId: string, file: File): Promise<string> {
+        const formData = new FormData()
+        formData.append('avatar', file)
+        
+        try {
+            const result = await api.upload(`/user/${userId}/avatar`, formData)
+            if (result.success && result.avatar_url) {
+                // 更新当前用户的头像URL
+                const currentUser = this.getCurrentUser()
+                if (currentUser) {
+                    currentUser.avatar_url = result.avatar_url
+                    this.setCurrentUser(currentUser)
+                }
+                return result.avatar_url
+            }
+            throw new Error(result.message || '上传头像失败')
+        } catch (error) {
+            console.error('上传头像失败:', error)
+            throw error
         }
     }
 }

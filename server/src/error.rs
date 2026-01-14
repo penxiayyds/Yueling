@@ -20,6 +20,8 @@ pub enum AppError {
     Internal(String),
     #[error("好友操作错误: {0}")]
     FriendOperation(String),
+    #[error("资源未找到: {0}")]
+    NotFound(String),
 }
 
 // 实现axum的错误转换
@@ -32,6 +34,7 @@ impl IntoResponse for AppError {
             AppError::InvalidCredentials(e) => (StatusCode::UNAUTHORIZED, e),
             AppError::Internal(e) => (StatusCode::INTERNAL_SERVER_ERROR, e),
             AppError::FriendOperation(e) => (StatusCode::BAD_REQUEST, e),
+            AppError::NotFound(e) => (StatusCode::NOT_FOUND, e),
         };
         let body = Json(json!({ "success": false, "message": msg }));
         (status, body).into_response()

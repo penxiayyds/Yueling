@@ -14,7 +14,7 @@ anyhow = "1.0.75"
 bcrypt = "0.17.1"
 rusqlite = { version = "0.38.0", features = ["bundled"] }
 serde = "1.0.228"
-axum = { version = "0.8.8", features = ["ws"] }
+axum = { version = "0.8.8", features = ["ws", "multipart"] }
 tower-http = { version = "0.6.8", features = ["cors", "compression-gzip", "trace"] }
 thiserror = "2.0.17"
 serde_json = "1.0.149"
@@ -26,3 +26,5 @@ rand_chacha = "0.3.0"
 sha2 = "0.10.8"
 hex = "0.4.3"
 base64 = "0.22.0"
+mime_guess = "2.0.4"
+http = "1.1.0"

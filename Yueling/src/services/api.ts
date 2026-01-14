@@ -19,5 +19,16 @@ export const api = {
             throw new Error(`HTTP ${response.status}: ${await response.text()}`)
         }
         return response.json()
+    },
+
+    async upload(endpoint: string, formData: FormData) {
+        const response = await fetch(`${API_CONFIG.BASE_URL}${endpoint}`, {
+            method: 'POST',
+            body: formData
+        })
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+        }
+        return response.json()
     }
 }

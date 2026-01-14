@@ -1,9 +1,14 @@
-use axum::{extract::{State}, response::Json, routing::{post}, Router};
+use axum::{extract::{State, Multipart, Path}, response::{Json, Response, IntoResponse}, routing::{post, get}, Router};
 use serde::{Deserialize, Serialize};
 use crate::storage::DbPool;
 use crate::error::AppError;
 use bcrypt::{verify, hash, DEFAULT_COST};
 use hex;
+use std::fs;
+use std::path::Path as FilePath;
+use uuid::Uuid;
+use http::{StatusCode, header::CONTENT_TYPE};
+use mime_guess::from_path;
 
 // 共享应用状态
 use super::AppState;
@@ -50,6 +55,29 @@ pub struct UserExistsResponse {
     pub success: bool,
     pub message: String,
     pub exists: bool,
+}
+
+// 头像上传响应体
+#[derive(Serialize)]
+pub struct AvatarUploadResponse {
+    pub success: bool,
+    pub message: String,
+    pub avatar_url: Option<String>,
+}
+
+// 通用成功响应体
+#[derive(Serialize)]
+pub struct SuccessResponse {
+    pub success: bool,
+    pub message: String,
+}
+
+// 用户信息响应体
+#[derive(Serialize)]
+pub struct UserInfoResponse {
+    pub success: bool,
+    pub message: String,
+    pub user: Option<serde_json::Value>,
 }
 
 // 注册处理器（核心API逻辑）
@@ -131,10 +159,106 @@ pub async fn user_exists_handler(
     }))
 }
 
+// 获取用户信息处理器
+pub async fn get_user_info_handler(
+    State(state): State<AppState>,
+    Path(user_id): Path<String>,
+) -> Result<Json<UserInfoResponse>, AppError> {
+    // 获取用户信息
+    let user = state.db_pool.get_user_by_id(&user_id).map_err(|e| AppError::Database(e.to_string()))?;
+    
+    // 转换为JSON值，不包含敏感信息
+    let user_json = serde_json::json!({
+        "id": user.id,
+        "username": user.username,
+        "avatar_url": user.avatar_url,
+        "created_at": user.created_at,
+    });
+    
+    Ok(Json(UserInfoResponse {
+        success: true,
+        message: "获取用户信息成功".into(),
+        user: Some(user_json),
+    }))
+}
+
+// 头像上传处理器
+pub async fn upload_avatar_handler(
+    State(state): State<AppState>,
+    Path(user_id): Path<String>,
+    mut multipart: Multipart,
+) -> Result<Json<AvatarUploadResponse>, AppError> {
+    // 创建上传目录
+    let upload_dir = FilePath::new("./uploads/avatars");
+    if !upload_dir.exists() {
+        fs::create_dir_all(upload_dir).map_err(|e| AppError::Internal(e.to_string()))?;
+    }
+
+    // 处理文件上传
+    while let Some(field) = multipart.next_field().await.map_err(|e| AppError::Internal(e.to_string()))? {
+        let name = field.name().unwrap_or("file");
+        if name != "avatar" {
+            continue;
+        }
+
+        let filename = field.file_name().unwrap_or("");
+        let extension = FilePath::new(filename).extension().and_then(|ext| ext.to_str()).unwrap_or("png");
+        
+        // 生成唯一文件名
+        let unique_filename = format!("{}.{}", Uuid::new_v4(), extension);
+        let filepath = upload_dir.join(&unique_filename);
+        
+        // 读取文件内容
+        let file_content = field.bytes().await.map_err(|e| AppError::Internal(e.to_string()))?;
+        
+        // 保存文件
+        fs::write(&filepath, file_content).map_err(|e| AppError::Internal(e.to_string()))?;
+        
+        // 更新用户头像URL
+        let avatar_url = format!("/uploads/avatars/{}", unique_filename);
+        state.db_pool.update_user_avatar(&user_id, &avatar_url).map_err(|e| AppError::Database(e.to_string()))?;
+        
+        // 返回成功响应
+        return Ok(Json(AvatarUploadResponse {
+            success: true,
+            message: "头像上传成功".into(),
+            avatar_url: Some(avatar_url),
+        }));
+    }
+
+    Err(AppError::Internal("未找到头像文件".into()))
+}
+
+// 获取头像处理器
+pub async fn get_avatar_handler(
+    Path(filename): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let filepath = FilePath::new("./uploads/avatars").join(filename);
+    
+    if !filepath.exists() {
+        return Err(AppError::NotFound("头像文件不存在".into()));
+    }
+    
+    // 读取文件内容
+    let file_content = fs::read(&filepath).map_err(|e| AppError::Internal(e.to_string()))?;
+    
+    // 猜测MIME类型
+    let mime_type = from_path(&filepath).first_or_octet_stream().to_string();
+    
+    // 构建响应
+    Ok((
+        [(CONTENT_TYPE, mime_type)],
+        file_content,
+    ))
+}
+
 /// 注册用户相关路由
 pub fn register_routes() -> Router<AppState> {
     Router::new()
         .route("/register", post(register_handler))
         .route("/login", post(login_handler))
         .route("/user/exists", post(user_exists_handler))
+        .route("/user/{user_id}", get(get_user_info_handler))
+        .route("/user/{user_id}/avatar", post(upload_avatar_handler))
+        .route("/uploads/avatars/{filename}", get(get_avatar_handler))
 }

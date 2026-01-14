@@ -98,8 +98,10 @@
         <aside class="sidebar">
           <div class="sidebar-header">
             <div class="user-info">
-              <div class="avatar">
-                <i class="fas fa-user-circle"></i>
+              <div class="avatar" @click="showAvatarUpload">
+                <img v-if="currentUser?.avatar_url" :src="`${API_CONFIG.BASE_URL}${currentUser.avatar_url}`" :alt="currentUser.username" class="avatar-img">
+                <i v-else class="fas fa-user-circle avatar-icon"></i>
+                <input type="file" ref="avatarInput" style="display: none" accept="image/*" @change="handleAvatarChange">
               </div>
               <div class="user-details">
                 <h3 id="current-username">{{ currentUser?.username || '用户名' }}</h3>
@@ -107,6 +109,10 @@
               </div>
             </div>
             <div class="sidebar-actions">
+              <button class="btn-icon" title="切换主题" @click="toggleTheme">
+                <i v-if="!isDarkMode" class="fas fa-moon"></i>
+                <i v-else class="fas fa-sun"></i>
+              </button>
               <button id="add-friend-open" class="btn-icon" title="添加好友" @click="showAddFriend">
                 <i class="fas fa-user-plus"></i>
               </button>
@@ -143,7 +149,8 @@
               <div class="contact-list">
                 <div v-for="friend in friends" :key="friend.id" class="contact-item" :class="{ active: selectedContact?.id === friend.id }" @click="selectContact(friend)">
                   <div class="avatar">
-                    <i class="fas fa-user-circle"></i>
+                    <img v-if="friend.avatar_url" :src="`${API_CONFIG.BASE_URL}${friend.avatar_url}`" :alt="friend.name" class="avatar-img">
+                    <i v-else class="fas fa-user-circle avatar-icon"></i>
                   </div>
                   <div class="contact-info">
                     <div class="contact-name">
@@ -181,7 +188,8 @@
           <div class="chat-header">
             <div class="contact-info">
               <div class="avatar">
-                <i class="fas fa-user-circle"></i>
+                <img v-if="selectedContact?.avatar_url" :src="`${API_CONFIG.BASE_URL}${selectedContact.avatar_url}`" :alt="selectedContact.name" class="avatar-img">
+                <i v-else class="fas fa-user-circle avatar-icon"></i>
               </div>
               <div class="contact-details">
                 <h3 id="chat-contact-name">{{ selectedContact?.name || '请选择一个好友或群聊' }}</h3>
@@ -213,11 +221,25 @@
               <button class="btn-icon" title="文件">
                 <i class="fas fa-paperclip"></i>
               </button>
+              <button class="btn-icon" title="语音">
+                <i class="fas fa-microphone"></i>
+              </button>
+              <button class="btn-icon" title="位置">
+                <i class="fas fa-map-marker-alt"></i>
+              </button>
+              <button class="btn-icon" title="视频">
+                <i class="fas fa-video"></i>
+              </button>
+              <button class="btn-icon" title="更多">
+                <i class="fas fa-ellipsis-h"></i>
+              </button>
             </div>
             <div class="input-wrapper">
               <textarea id="message-input" v-model="newMessage" placeholder="输入消息..." rows="1" @keydown.enter.prevent="sendMessage" @input="autoResizeTextarea"></textarea>
             </div>
-            <button id="send-btn" class="btn btn-primary" @click="sendMessage">发送</button>
+            <button id="send-btn" class="btn" @click="sendMessage">
+              <i class="fas fa-paper-plane"></i>
+            </button>
           </div>
         </main>
       </div>
@@ -258,9 +280,9 @@
             </div>
           </div>
 
-          <div style="display:flex;gap:10px;">
+          <div class="form-buttons">
             <button type="submit" class="btn btn-primary">发送好友请求</button>
-            <button type="button" id="add-friend-cancel" class="btn btn-secondary" style="width:auto;padding:8px;" @click="showChat">取消</button>
+            <button type="button" id="add-friend-cancel" class="btn btn-secondary" @click="showChat">取消</button>
           </div>
         </form>
       </div>
@@ -279,24 +301,24 @@
             <div class="input-wrapper">
               <div id="friend-requests-list" style="width:100%;">
                 <div v-for="request in friendRequests" :key="request.id" class="friend-request-item">
-                  <div style="display:flex;justify-content:space-between;align-items:center;padding:8px;border-bottom:1px solid #eee;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;">
                     <div>
                       <div><strong>{{ request.from_username || request.from_user_id || '未知用户' }}</strong></div>
-                      <div style="font-size:12px;color:#666;">请求时间：{{ formatRequestTime(request.created_at) }}</div>
+                      <div style="font-size:12px;color:#666;margin-top:4px;">请求时间：{{ formatRequestTime(request.created_at) }}</div>
                     </div>
-                    <div style="display:flex;gap:8px;">
-                      <button class="btn btn-primary btn-accept" @click="respondToFriendRequest(request.id, 'accepted')">接受</button>
-                      <button class="btn btn-secondary btn-reject" @click="respondToFriendRequest(request.id, 'rejected')">拒绝</button>
+                    <div style="display:flex;gap:12px;">
+                      <button class="btn btn-accept" @click="respondToFriendRequest(request.id, 'accepted')">接受</button>
+                      <button class="btn btn-reject" @click="respondToFriendRequest(request.id, 'rejected')">拒绝</button>
                     </div>
                   </div>
                 </div>
-                <div v-if="friendRequests.length === 0">没有新的好友请求。</div>
+                <div v-if="friendRequests.length === 0" style="text-align:center;color:var(--text-secondary);padding:24px;background:var(--bg-light);border-radius:12px;margin-top:12px;">没有新的好友请求。</div>
               </div>
             </div>
           </div>
 
-          <div style="display:flex;gap:10px;">
-            <button type="button" id="friend-requests-cancel" class="btn btn-secondary" style="width:auto;padding:8px;" @click="showChat">返回</button>
+          <div class="form-buttons">
+            <button type="button" id="friend-requests-cancel" class="btn btn-primary" @click="showChat">返回</button>
           </div>
         </div>
       </div>
@@ -314,6 +336,7 @@ import { websocketService } from './services/websocket'
 interface User {
   id: string
   username: string
+  avatar_url?: string
 }
 
 interface Contact {
@@ -321,6 +344,7 @@ interface Contact {
   name: string
   status: string
   memberCount?: number
+  avatar_url?: string
 }
 
 interface Message {
@@ -360,6 +384,7 @@ export default defineComponent({
     const addFriendDisplay = ref('')
     const addFriendNote = ref('')
     const friendRequests = ref<FriendRequest[]>([])
+    const avatarInput = ref<HTMLInputElement | null>(null)
 
     const toastClass = computed(() => `toast ${toastType.value} ${toastMessage.value ? 'show' : ''}`)
 
@@ -530,6 +555,50 @@ export default defineComponent({
     }
 
     const serverConnected = ref(false)
+    const isDarkMode = ref(false)
+
+    // 切换主题
+    const toggleTheme = () => {
+      isDarkMode.value = !isDarkMode.value
+      document.documentElement.setAttribute('data-theme', isDarkMode.value ? 'dark' : 'light')
+      localStorage.setItem('theme', isDarkMode.value ? 'dark' : 'light')
+    }
+
+    // 检查主题偏好
+    const checkThemePreference = () => {
+      const savedTheme = localStorage.getItem('theme')
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      isDarkMode.value = savedTheme ? savedTheme === 'dark' : prefersDark
+      document.documentElement.setAttribute('data-theme', isDarkMode.value ? 'dark' : 'light')
+    }
+
+    // 显示头像上传对话框
+    const showAvatarUpload = () => {
+      if (avatarInput.value) {
+        avatarInput.value.click()
+      }
+    }
+
+    // 处理头像选择
+    const handleAvatarChange = async (event: Event) => {
+      const input = event.target as HTMLInputElement
+      if (input.files && input.files.length > 0 && currentUser.value) {
+        const file = input.files[0]
+        try {
+          await authService.uploadAvatar(currentUser.value.id, file)
+          showToast('头像上传成功', 'success')
+          // 重新加载用户信息
+          const userInfo = await authService.getUserInfo(currentUser.value.id)
+          if (userInfo.avatar_url) {
+            currentUser.value.avatar_url = userInfo.avatar_url
+          }
+        } catch (error: any) {
+          showToast(error.message || '头像上传失败', 'error')
+        }
+        // 清空文件输入，以便可以重新选择相同的文件
+        input.value = ''
+      }
+    }
 
     const loadFriends = async () => {
       if (!currentUser.value) return
@@ -538,7 +607,8 @@ export default defineComponent({
         friends.value = loaded.map(f => ({
           id: f.id,
           name: f.name,
-          status: f.status
+          status: f.status,
+          avatar_url: f.avatar_url
         }))
       } catch (error) {
         console.error('加载好友列表失败:', error)
@@ -627,6 +697,8 @@ export default defineComponent({
     }
 
     onMounted(() => {
+      // 检查主题偏好
+      checkThemePreference()
       // 从存储加载用户
       const savedUser = authService.loadFromStorage()
       if (savedUser) {
@@ -680,6 +752,9 @@ export default defineComponent({
       addFriendNote,
       friendRequests,
       serverConnected,
+      isDarkMode,
+      avatarInput,
+      API_CONFIG,
       showToast,
       switchToRegister,
       switchToLogin,
@@ -687,6 +762,7 @@ export default defineComponent({
       showAddFriend,
       showFriendRequests,
       togglePasswordVisibility,
+      toggleTheme,
       handleLogin,
       handleRegister,
       logout,
@@ -698,6 +774,8 @@ export default defineComponent({
       respondToFriendRequest,
       formatTime,
       formatRequestTime,
+      showAvatarUpload,
+      handleAvatarChange,
     }
   },
 })
