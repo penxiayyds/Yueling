@@ -163,7 +163,7 @@ pub async fn send_friend_request_handler(
     })
     .to_string();
 
-    if let Some(tx) = state.clients.lock().unwrap().get(&result.to_user_id) {
+    if let Some(tx) = state.get_clients().lock().unwrap().get(&result.to_user_id) {
         let _ = tx.send(notify);
     }
 
@@ -268,7 +268,7 @@ pub async fn respond_to_friend_request_handler(
         .to_string();
 
         // 尝试向发送者和接收者发送通知（如果他们通过 websocket 标识并连接）
-        let mut clients = state.clients.lock().unwrap();
+        let mut clients = state.get_clients().lock().unwrap();
         if let Some(tx) = clients.get(&friendship.friend_id) {
             println!("Sending friend_added notify to {}: {}", friendship.friend_id, notify);
             let _ = tx.send(notify.clone());
