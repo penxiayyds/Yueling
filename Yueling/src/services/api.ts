@@ -21,6 +21,18 @@ export const api = {
         return response.json()
     },
 
+    async put(endpoint: string, data: any) {
+        const response = await fetch(`${API_CONFIG.BASE_URL}${endpoint}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+        }
+        return response.json()
+    },
+
     async upload(endpoint: string, formData: FormData) {
         const response = await fetch(`${API_CONFIG.BASE_URL}${endpoint}`, {
             method: 'POST',

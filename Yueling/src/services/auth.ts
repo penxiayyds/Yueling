@@ -111,6 +111,24 @@ export class AuthService {
             throw error
         }
     }
+
+    async updateUserInfo(userId: string, username: string, email: string): Promise<void> {
+        try {
+            const result = await api.put(`/user/${userId}`, { username, email })
+            if (!result.success) {
+                throw new Error(result.message || '更新用户信息失败')
+            }
+            // 更新当前用户的用户名
+            const currentUser = this.getCurrentUser()
+            if (currentUser) {
+                currentUser.username = username
+                this.setCurrentUser(currentUser)
+            }
+        } catch (error) {
+            console.error('更新用户信息失败:', error)
+            throw error
+        }
+    }
 }
 
 export const authService = new AuthService()

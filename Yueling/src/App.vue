@@ -99,7 +99,7 @@
           <div class="sidebar-header">
             <div class="user-info">
               <div class="avatar-container">
-                <div class="avatar" @click="showAvatarUpload">
+                <div class="avatar" @click="handleAvatarClick">
                   <img v-if="currentUser?.avatar_url" :src="`${API_CONFIG.BASE_URL}${currentUser.avatar_url}`" :alt="currentUser.username" class="avatar-img">
                   <i v-else class="fas fa-user-circle avatar-icon"></i>
                   <input type="file" ref="avatarInput" style="display: none" accept="image/*" @change="handleAvatarChange">
@@ -328,6 +328,57 @@
         </div>
       </div>
     </div>
+
+    <!-- 个人主页 -->
+    <div id="profile-container" class="container" :class="{ active: currentView === 'profile' }">
+      <div class="register-box" style="max-width: 600px;">
+        <div class="logo">
+          <i class="fas fa-user"></i>
+          <h1>个人主页</h1>
+        </div>
+        <div class="form">
+          <div class="form-group" style="text-align: center;">
+            <div class="avatar-container" style="display: inline-block; margin-bottom: 20px;">
+              <div class="avatar" @click="showAvatarUpload" style="width: 120px; height: 120px;">
+                <img v-if="currentUser?.avatar_url" :src="`${API_CONFIG.BASE_URL}${currentUser.avatar_url}`" :alt="currentUser.username" class="avatar-img" style="width: 100%; height: 100%;">
+                <i v-else class="fas fa-user-circle avatar-icon" style="font-size: 120px;"></i>
+                <input type="file" ref="avatarInput" style="display: none" accept="image/*" @change="handleAvatarChange">
+              </div>
+              <span class="status online">在线</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="profile-username">用户名</label>
+            <div class="input-wrapper">
+              <i class="fas fa-user"></i>
+              <input type="text" id="profile-username" v-model="profileUsername" placeholder="请输入用户名">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="profile-bio">个人简介</label>
+            <div class="input-wrapper">
+              <i class="fas fa-info-circle"></i>
+              <textarea id="profile-bio" v-model="profileBio" placeholder="介绍一下自己..." rows="3"></textarea>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="profile-email">邮箱</label>
+            <div class="input-wrapper">
+              <i class="fas fa-envelope"></i>
+              <input type="email" id="profile-email" v-model="profileEmail" placeholder="请输入邮箱">
+            </div>
+          </div>
+
+          <div class="form-buttons">
+            <button type="button" class="btn btn-primary" @click="saveProfile">保存修改</button>
+            <button type="button" class="btn btn-secondary" @click="showChat">返回</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -369,7 +420,7 @@ interface FriendRequest {
 export default defineComponent({
   name: 'App',
   setup() {
-    const currentView = ref<'login' | 'register' | 'chat' | 'add-friend' | 'friend-requests'>('login')
+    const currentView = ref<'login' | 'register' | 'chat' | 'add-friend' | 'friend-requests' | 'profile'>('login')
     const loginUsername = ref('')
     const loginPassword = ref('')
     const rememberMe = ref(false)
@@ -390,6 +441,10 @@ export default defineComponent({
     const addFriendNote = ref('')
     const friendRequests = ref<FriendRequest[]>([])
     const avatarInput = ref<HTMLInputElement | null>(null)
+    // 个人主页相关状态
+    const profileUsername = ref('')
+    const profileBio = ref('')
+    const profileEmail = ref('')
 
     const toastClass = computed(() => `toast ${toastType.value} ${toastMessage.value ? 'show' : ''}`)
 
@@ -584,6 +639,50 @@ export default defineComponent({
       }
     }
 
+    // 用于区分单击和双击事件的变量
+    let clickTimer: number | null = null
+
+    // 处理头像点击事件
+    const handleAvatarClick = () => {
+      // 如果已经有点击计时器，说明是双击
+      if (clickTimer) {
+        clearTimeout(clickTimer)
+        clickTimer = null
+        // 执行双击操作：打开个人主页
+        if (currentUser.value) {
+          // 初始化个人主页表单数据
+          profileUsername.value = currentUser.value.username || ''
+          profileBio.value = '' // 这里可以从后端获取实际数据
+          profileEmail.value = '' // 这里可以从后端获取实际数据
+          currentView.value = 'profile'
+        }
+      } else {
+        // 第一次点击，设置计时器
+        clickTimer = window.setTimeout(() => {
+          // 执行单击操作：显示头像上传
+          showAvatarUpload()
+          clickTimer = null
+        }, 300) // 300ms 延迟，用于区分单击和双击
+      }
+    }
+
+    // 保存个人主页修改
+    const saveProfile = async () => {
+      if (!currentUser.value) return
+      try {
+        // 调用后端API保存个人信息
+        await authService.updateUserInfo(currentUser.value.id, profileUsername.value, profileEmail.value)
+        // 更新本地用户信息
+        if (profileUsername.value) {
+          currentUser.value.username = profileUsername.value
+        }
+        showToast('个人信息保存成功', 'success')
+        currentView.value = 'chat'
+      } catch (error: any) {
+        showToast(error.message || '保存失败', 'error')
+      }
+    }
+
     // 处理头像选择
     const handleAvatarChange = async (event: Event) => {
       const input = event.target as HTMLInputElement
@@ -760,6 +859,10 @@ export default defineComponent({
       isDarkMode,
       avatarInput,
       API_CONFIG,
+      // 个人主页相关状态
+      profileUsername,
+      profileBio,
+      profileEmail,
       showToast,
       switchToRegister,
       switchToLogin,
@@ -781,6 +884,8 @@ export default defineComponent({
       formatRequestTime,
       showAvatarUpload,
       handleAvatarChange,
+      handleAvatarClick,
+      saveProfile,
     }
   },
 })

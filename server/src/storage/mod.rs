@@ -539,6 +539,16 @@ impl DbPool {
         Ok(())
     }
 
+    // 更新用户信息
+    pub fn update_user_info(&self, user_id: &str, username: &str, email: &str) -> Result<()> {
+        let conn = self.0.lock().unwrap();
+        conn.execute(
+            "UPDATE users SET username = ?, email = ? WHERE id = ?",
+            params![username, email, user_id],
+        )?;
+        Ok(())
+    }
+
     // 根据ID获取用户
     pub fn get_user_by_id(&self, user_id: &str) -> Result<User> {
         let conn = self.0.lock().unwrap();

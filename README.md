@@ -4,7 +4,7 @@
 
 [![GitHub stars](https://img.shields.io/github/stars/Moon-Spirit/Yueling?style=social)](https://github.com/Moon-Spirit/Yueling/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/Moon-Spirit/Yueling?style=social)](https://github.com/Moon-Spirit/Yueling/network/members)
-[![License](https://img.shields.io/github/license/Moon-Spirit/Yueling)](https://github.com/Moon-Spirit/Yueling/blob/main/LICENSE)
+[![License](https://img.shields.io/github/license/Moon-Spirit/Yueling)](https://github.com/Moon-Spirit/Yueling/blob/master/LICENSE)
 
 一个现代化的即时通讯应用，支持实时消息、好友管理、头像上传等功能。
 

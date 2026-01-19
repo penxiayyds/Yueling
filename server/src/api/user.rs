@@ -1,4 +1,4 @@
-use axum::{extract::{State, Multipart, Path}, response::{Json, Response, IntoResponse}, routing::{post, get}, Router};
+use axum::{extract::{State, Multipart, Path}, response::{Json, Response, IntoResponse}, routing::{post, get}, Router, routing::put};
 use serde::{Deserialize, Serialize};
 use crate::storage::DbPool;
 use crate::error::AppError;
@@ -70,6 +70,13 @@ pub struct AvatarUploadResponse {
 pub struct SuccessResponse {
     pub success: bool,
     pub message: String,
+}
+
+// 更新用户信息请求体
+#[derive(Deserialize)]
+pub struct UpdateUserRequest {
+    pub username: String,
+    pub email: String,
 }
 
 // 用户信息响应体
@@ -252,6 +259,22 @@ pub async fn get_avatar_handler(
     ))
 }
 
+// 更新用户信息处理器
+pub async fn update_user_info_handler(
+    State(state): State<AppState>,
+    Path(user_id): Path<String>,
+    Json(req): Json<UpdateUserRequest>,
+) -> Result<Json<SuccessResponse>, AppError> {
+    // 更新用户信息
+    state.db_pool.update_user_info(&user_id, &req.username, &req.email)
+        .map_err(|e| AppError::Database(e.to_string()))?;
+    
+    Ok(Json(SuccessResponse {
+        success: true,
+        message: "用户信息更新成功".into(),
+    }))
+}
+
 /// 注册用户相关路由
 pub fn register_routes() -> Router<AppState> {
     Router::new()
@@ -259,6 +282,7 @@ pub fn register_routes() -> Router<AppState> {
         .route("/login", post(login_handler))
         .route("/user/exists", post(user_exists_handler))
         .route("/user/{user_id}", get(get_user_info_handler))
+        .route("/user/{user_id}", put(update_user_info_handler))
         .route("/user/{user_id}/avatar", post(upload_avatar_handler))
         .route("/uploads/avatars/{filename}", get(get_avatar_handler))
 }
