@@ -2,10 +2,10 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::thread::Builder;
-use tauri::Builder;
-use tauri::plugin::Builder;
-use tauri_plugin_opener::Builder;
+use std::thread::Builder as ThreadBuilder;
+use tauri::Builder as TauriBuilder;
+use tauri::plugin::Builder as PluginBuilder;
+use tauri_plugin_opener::Builder as OpenerBuilder;
 
 // 聊天客户端状态
 struct ChatClient {
@@ -163,8 +163,7 @@ pub fn run() {
         chat_client: Mutex::new(ChatClient::default()),
     });
 
-    tauri::Builder::default()
-        .plugin(tauri_plugin_autostart::Builder::new().build())
+    TauriBuilder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(app_state)
         .invoke_handler(tauri::generate_handler![
