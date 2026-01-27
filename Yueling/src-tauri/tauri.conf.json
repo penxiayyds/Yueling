@@ -22,7 +22,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["msi", "dmg", "deb"],
+    "targets": ["msi", "dmg", "deb", "ios"],
     "icon": [
       "icons/icon.ico",
       "icons/icon.png",

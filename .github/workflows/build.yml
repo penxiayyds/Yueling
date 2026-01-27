@@ -134,7 +134,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: android-build
-          path: ./Yueling/src-tauri/gen/android/app/build/outputs/apk
+          path: ./Yueling/src-tauri/gen/android/app/build/outputs/apk/universal/release
 
   # 构建Linux
   build-linux:
@@ -190,7 +190,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-build
-          path: ./Yueling/src-tauri/target/release/bundle
+          path: ./Yueling/src-tauri/target/release/bundle/deb
 
   # 构建Windows
   build-windows:
@@ -242,7 +242,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-build
-          path: ./Yueling/src-tauri/target/release/bundle
+          path: ./Yueling/src-tauri/target/release/bundle/msi
 
   # 构建Mac OS
   build-macos:
@@ -294,12 +294,72 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: macos-build
-          path: ./Yueling/src-tauri/target/release/bundle
+          path: ./Yueling/src-tauri/target/release/bundle/dmg
+
+  # 构建iOS
+  build-ios:
+    runs-on: macos-latest
+    needs: build-frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      # 下载前端构建产物
+      - name: Download frontend build
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: ./Yueling/dist
+
+      # 设置Node.js环境
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 设置Rust环境
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # 添加iOS编译目标
+      - name: Add iOS targets
+        run: rustup target add aarch64-apple-ios x86_64-apple-ios aarch64-apple-ios-sim
+
+      # 安装CocoaPods
+      - name: Install CocoaPods
+        run: brew install cocoapods
+
+      # 缓存Rust依赖
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ./Yueling/src-tauri/target
+          key: ${{ runner.os }}-cargo-ios-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-ios-
+
+      # 安装Tauri CLI
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli
+
+      # 构建iOS
+      - name: Build iOS
+        run: cargo tauri ios build
+        working-directory: ./Yueling
+
+      # 上传iOS构建产物
+      - name: Upload iOS build
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build
+          path: ./Yueling/src-tauri/gen/ios
 
   # 创建Release
   create-release:
     runs-on: ubuntu-latest
-    needs: [build-backend, build-android, build-linux, build-windows, build-macos]
+    needs: [build-backend, build-android, build-linux, build-windows, build-macos, build-ios]
     permissions:
       contents: write
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -343,7 +403,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/android-build/universal/release/app-universal-release-unsigned.apk
+          asset_path: ./artifacts/android-build/app-universal-release-unsigned.apk
           asset_name: yueling-${{ github.run_number }}.apk
           asset_content_type: application/vnd.android.package-archive
 
@@ -354,7 +414,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/linux-build/deb/yueling_0.1.0_amd64.deb
+          asset_path: ./artifacts/linux-build/yueling_0.1.0_amd64.deb
           asset_name: yueling-${{ github.run_number }}-linux.deb
           asset_content_type: application/x-debian-package
 
@@ -365,7 +425,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/windows-build/msi/yueling_0.1.0_x64_en-US.msi
+          asset_path: ./artifacts/windows-build/yueling_0.1.0_x64_en-US.msi
           asset_name: yueling-${{ github.run_number }}-windows.msi
           asset_content_type: application/x-msi
 
@@ -376,6 +436,17 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/macos-build/dmg/yueling_0.1.0_x64.dmg
+          asset_path: ./artifacts/macos-build/yueling_0.1.0_x64.dmg
           asset_name: yueling-${{ github.run_number }}-macos.dmg
           asset_content_type: application/x-apple-diskimage
+
+      # 上传iOS构建产物
+      - name: Upload iOS IPA
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./artifacts/ios-build/build/Products/Release-iphoneos/yueling.ipa
+          asset_name: yueling-${{ github.run_number }}-ios.ipa
+          asset_content_type: application/octet-stream
