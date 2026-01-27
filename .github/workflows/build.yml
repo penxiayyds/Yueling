@@ -8,11 +8,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  # 构建前端
+  build-frontend:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
     steps:
       - uses: actions/checkout@v4
 
@@ -21,16 +19,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      # 设置Rust环境
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-pc-windows-msvc,x86_64-apple-darwin,x86_64-unknown-linux-gnu
-
-      # 安装Android SDK
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
 
       # 安装前端依赖
       - name: Install frontend dependencies
@@ -42,6 +30,63 @@ jobs:
         run: npm run build
         working-directory: ./Yueling
 
+      # 上传前端构建产物
+      - name: Upload frontend build
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: ./Yueling/dist
+
+  # 构建后端
+  build-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 设置Rust环境
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # 构建后端
+      - name: Build backend
+        run: cargo build --release
+        working-directory: ./server
+
+      # 上传后端构建产物
+      - name: Upload backend build
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-build
+          path: ./server/target/release/server
+
+  # 构建Android
+  build-android:
+    runs-on: ubuntu-latest
+    needs: build-frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      # 下载前端构建产物
+      - name: Download frontend build
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: ./Yueling/dist
+
+      # 设置Node.js环境
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 设置Rust环境
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # 安装Android SDK
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
       # 安装Tauri CLI
       - name: Install Tauri CLI
         run: cargo install tauri-cli
@@ -51,39 +96,153 @@ jobs:
         run: cargo tauri android build
         working-directory: ./Yueling
 
-      # 构建Windows桌面端
-      - name: Build Windows desktop
-        run: cargo tauri build --target x86_64-pc-windows-msvc
-        working-directory: ./Yueling
-
-      # 构建Mac OS桌面端
-      - name: Build Mac OS desktop
-        run: cargo tauri build --target x86_64-apple-darwin
-        working-directory: ./Yueling
-
-      # 构建Linux桌面端
-      - name: Build Linux desktop
-        run: cargo tauri build --target x86_64-unknown-linux-gnu
-        working-directory: ./Yueling
-
-      # 构建后端
-      - name: Build backend
-        run: cargo build --release
-        working-directory: ./server
-
-      # 上传构建产物
-      - name: Upload artifacts
+      # 上传Android构建产物
+      - name: Upload Android build
         uses: actions/upload-artifact@v4
         with:
-          name: build-artifacts
-          path: |
-            ./Yueling/src-tauri/target/
-            ./server/target/release/server
+          name: android-build
+          path: ./Yueling/src-tauri/gen/android/app/build/outputs/apk
+
+  # 构建Linux
+  build-linux:
+    runs-on: ubuntu-latest
+    needs: build-frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      # 下载前端构建产物
+      - name: Download frontend build
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: ./Yueling/dist
+
+      # 设置Node.js环境
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 设置Rust环境
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # 安装Tauri CLI
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli
+
+      # 构建Linux
+      - name: Build Linux
+        run: cargo tauri build
+        working-directory: ./Yueling
+
+      # 上传Linux构建产物
+      - name: Upload Linux build
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: ./Yueling/src-tauri/target/release/bundle
+
+  # 构建Windows
+  build-windows:
+    runs-on: windows-latest
+    needs: build-frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      # 下载前端构建产物
+      - name: Download frontend build
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: ./Yueling/dist
+
+      # 设置Node.js环境
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 设置Rust环境
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # 安装Tauri CLI
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli
+
+      # 构建Windows
+      - name: Build Windows
+        run: cargo tauri build
+        working-directory: ./Yueling
+
+      # 上传Windows构建产物
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: ./Yueling/src-tauri/target/release/bundle
+
+  # 构建Mac OS
+  build-macos:
+    runs-on: macos-latest
+    needs: build-frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      # 下载前端构建产物
+      - name: Download frontend build
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: ./Yueling/dist
+
+      # 设置Node.js环境
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 设置Rust环境
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # 安装Tauri CLI
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli
+
+      # 构建Mac OS
+      - name: Build Mac OS
+        run: cargo tauri build
+        working-directory: ./Yueling
+
+      # 上传Mac OS构建产物
+      - name: Upload Mac OS build
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: ./Yueling/src-tauri/target/release/bundle
+
+  # 创建Release
+  create-release:
+    runs-on: ubuntu-latest
+    needs: [build-backend, build-android, build-linux, build-windows, build-macos]
+    permissions:
+      contents: write
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 下载所有构建产物
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
 
       # 创建GitHub Release
       - name: Create Release
         id: create_release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -93,62 +252,57 @@ jobs:
           draft: false
           prerelease: true
 
-      # 上传Android APK
-      - name: Upload Android APK
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      # 上传后端可执行文件
+      - name: Upload Backend Asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./Yueling/src-tauri/target/release/bundle/android/app/build/outputs/apk/release/app-release.apk
+          asset_path: ./artifacts/backend-build/server
+          asset_name: server-${{ github.run_number }}
+          asset_content_type: application/octet-stream
+
+      # 上传Android APK
+      - name: Upload Android APK
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./artifacts/android-build/universal/release/app-universal-release-unsigned.apk
           asset_name: yueling-${{ github.run_number }}.apk
           asset_content_type: application/vnd.android.package-archive
 
-      # 上传Windows安装包
-      - name: Upload Windows MSI
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      # 上传Linux安装包
+      - name: Upload Linux DEB
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./Yueling/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/yueling_0.1.0_x64_en-US.msi
+          asset_path: ./artifacts/linux-build/deb/yueling_0.1.0_amd64.deb
+          asset_name: yueling-${{ github.run_number }}-linux.deb
+          asset_content_type: application/x-debian-package
+
+      # 上传Windows安装包
+      - name: Upload Windows MSI
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./artifacts/windows-build/msi/yueling_0.1.0_x64_en-US.msi
           asset_name: yueling-${{ github.run_number }}-windows.msi
           asset_content_type: application/x-msi
 
       # 上传Mac OS安装包
       - name: Upload Mac OS DMG
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./Yueling/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/yueling_0.1.0_x64.dmg
+          asset_path: ./artifacts/macos-build/dmg/yueling_0.1.0_x64.dmg
           asset_name: yueling-${{ github.run_number }}-macos.dmg
           asset_content_type: application/x-apple-diskimage
-
-      # 上传Linux安装包
-      - name: Upload Linux DEB
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./Yueling/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb/yueling_0.1.0_amd64.deb
-          asset_name: yueling-${{ github.run_number }}-linux.deb
-          asset_content_type: application/x-debian-package
-
-      # 上传后端可执行文件
-      - name: Upload Backend Asset
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./server/target/release/server
-          asset_name: server-${{ github.run_number }}
-          asset_content_type: application/octet-stream
