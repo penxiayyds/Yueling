@@ -1357,6 +1357,30 @@ body {
     background: var(--bg-secondary);
     position: relative;
     overflow: hidden;
+    transition: var(--transition);
+}
+
+.chat-main.full-width {
+    width: 100%;
+    flex: none;
+}
+
+/* 聊天头部左侧区域 */
+.chat-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+}
+
+/* 菜单切换按钮 */
+.menu-toggle {
+    display: none;
+}
+
+/* 移动端侧边栏隐藏 */
+.sidebar.mobile-hidden {
+    display: none;
 }
 
 /* 微妙背景图案 */
@@ -2163,10 +2187,15 @@ body {
     
     .sidebar {
         width: 100%;
-        height: 50%;
+        height: 100%;
         border-right: none;
-        border-bottom: 2px solid var(--border-color);
+        border-bottom: none;
         border-radius: 0;
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 100;
+        animation: slideInLeft 0.3s ease-out;
     }
     
     .sidebar-header {
@@ -2188,7 +2217,14 @@ body {
     }
     
     .chat-main {
-        height: 50%;
+        height: 100%;
+        width: 100%;
+        flex: none;
+    }
+    
+    /* 显示菜单切换按钮 */
+    .menu-toggle {
+        display: flex;
     }
     
     .message {

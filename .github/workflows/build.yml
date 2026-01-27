@@ -1,0 +1,120 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 设置Node.js环境
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 设置Rust环境
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # 安装Android SDK
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      # 安装前端依赖
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: ./Yueling
+
+      # 构建前端
+      - name: Build frontend
+        run: npm run build
+        working-directory: ./Yueling
+
+      # 安装Tauri CLI
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli
+
+      # 构建Android APK
+      - name: Build Android APK
+        run: cargo tauri android build
+        working-directory: ./Yueling
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      # 构建桌面端
+      - name: Build desktop
+        run: cargo tauri build
+        working-directory: ./Yueling
+
+      # 构建后端
+      - name: Build backend
+        run: cargo build --release
+        working-directory: ./server
+
+      # 上传构建产物
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            ./Yueling/src-tauri/target/release/bundle/
+            ./server/target/release/server
+
+      # 创建GitHub Release
+      - name: Create Release
+        id: create_release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ github.run_number }}
+          release_name: Release v${{ github.run_number }}
+          draft: false
+          prerelease: false
+
+      # 上传Release资产
+      - name: Upload Release Assets
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./Yueling/src-tauri/target/release/bundle/android/app/build/outputs/apk/release/app-release.apk
+          asset_name: yueling-${{ github.run_number }}.apk
+          asset_content_type: application/vnd.android.package-archive
+
+      - name: Upload Desktop Assets
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./Yueling/src-tauri/target/release/bundle/msi/yueling_0.1.0_x64_en-US.msi
+          asset_name: yueling-${{ github.run_number }}.msi
+          asset_content_type: application/x-msi
+
+      - name: Upload Backend Asset
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./server/target/release/server
+          asset_name: server-${{ github.run_number }}
+          asset_content_type: application/octet-stream

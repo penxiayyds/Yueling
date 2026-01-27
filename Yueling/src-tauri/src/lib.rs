@@ -1,7 +1,7 @@
+use std::io::{Read, Write};
+use std::net::TcpStream;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::net::TcpStream;
-use std::io::{Read, Write};
 
 // 聊天客户端状态
 struct ChatClient {
@@ -34,7 +34,10 @@ fn greet(name: &str) -> String {
 }
 
 #[tauri::command]
-async fn connect_to_server(state: tauri::State<'_, Arc<AppState>>, _protocol: &str) -> Result<String, String> {
+async fn connect_to_server(
+    state: tauri::State<'_, Arc<AppState>>,
+    _protocol: &str,
+) -> Result<String, String> {
     // 先检查连接状态
     {
         let client = state.chat_client.lock().unwrap();
@@ -42,13 +45,13 @@ async fn connect_to_server(state: tauri::State<'_, Arc<AppState>>, _protocol: &s
             return Err("Already connected".to_string());
         }
     }
-    
+
     // 统一使用TCP连接
     let stream = match connect_tcp() {
         Ok(stream) => stream,
-        Err(e) => return Err(e)
+        Err(e) => return Err(e),
     };
-    
+
     // 更新连接状态
     {
         let mut client = state.chat_client.lock().unwrap();
@@ -56,12 +59,15 @@ async fn connect_to_server(state: tauri::State<'_, Arc<AppState>>, _protocol: &s
         client.protocol = "tcp".to_string();
         client.tcp_stream = Some(stream);
     }
-    
+
     Ok("Connected via tcp".to_string())
 }
 
 #[tauri::command]
-async fn send_message(state: tauri::State<'_, Arc<AppState>>, message: &str) -> Result<String, String> {
+async fn send_message(
+    state: tauri::State<'_, Arc<AppState>>,
+    message: &str,
+) -> Result<String, String> {
     // 获取当前连接状态
     {
         let client = state.chat_client.lock().unwrap();
@@ -69,25 +75,25 @@ async fn send_message(state: tauri::State<'_, Arc<AppState>>, message: &str) -> 
             return Err("Not connected to server".to_string());
         }
     }
-    
+
     // 使用TCP发送消息
     let mut stream = {
         let mut client = state.chat_client.lock().unwrap();
         client.tcp_stream.take()
     };
-    
+
     let response = if let Some(ref mut s) = stream {
         let result = send_tcp_message(s, message);
-        
+
         // 归还流
         let mut client = state.chat_client.lock().unwrap();
         client.tcp_stream = stream;
-        
+
         result
     } else {
         Err("TCP connection not established".to_string())
     };
-    
+
     // 更新消息列表
     match response {
         Ok(response) => {
@@ -95,7 +101,7 @@ async fn send_message(state: tauri::State<'_, Arc<AppState>>, message: &str) -> 
             client.messages.push(format!("You: {}", message));
             client.messages.push(format!("Server: {}", response));
             Ok(response)
-        },
+        }
         Err(e) => Err(e),
     }
 }
@@ -103,15 +109,15 @@ async fn send_message(state: tauri::State<'_, Arc<AppState>>, message: &str) -> 
 #[tauri::command]
 async fn disconnect(state: tauri::State<'_, Arc<AppState>>) -> Result<String, String> {
     let mut client = state.chat_client.lock().unwrap();
-    
+
     if !client.is_connected {
         return Err("Not connected to server".to_string());
     }
-    
+
     // 断开连接逻辑
     client.tcp_stream.take();
     client.is_connected = false;
-    
+
     Ok("Disconnected".to_string())
 }
 
@@ -126,7 +132,7 @@ fn connect_tcp() -> Result<TcpStream, String> {
     // 连接到TCP服务器
     let stream = TcpStream::connect("127.0.0.1:2025")
         .map_err(|e| format!("Failed to connect to TCP server: {}", e))?;
-    
+
     println!("TCP connection established");
     Ok(stream)
 }
@@ -134,14 +140,16 @@ fn connect_tcp() -> Result<TcpStream, String> {
 // TCP发送消息函数
 fn send_tcp_message(stream: &mut TcpStream, message: &str) -> Result<String, String> {
     // 发送消息
-    stream.write_all(message.as_bytes())
+    stream
+        .write_all(message.as_bytes())
         .map_err(|e| format!("Failed to send TCP message: {}", e))?;
-    
+
     // 接收响应
     let mut buffer = [0u8; 1024];
-    let n = stream.read(&mut buffer)
+    let n = stream
+        .read(&mut buffer)
         .map_err(|e| format!("Failed to read TCP response: {}", e))?;
-    
+
     Ok(String::from_utf8_lossy(&buffer[..n]).to_string())
 }
 
@@ -150,8 +158,9 @@ pub fn run() {
     let app_state = Arc::new(AppState {
         chat_client: Mutex::new(ChatClient::default()),
     });
-    
+
     tauri::Builder::default()
+        .plugin(tauri_plugin_autostart::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .manage(app_state)
         .invoke_handler(tauri::generate_handler![

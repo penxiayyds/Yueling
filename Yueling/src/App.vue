@@ -95,7 +95,7 @@
     <div id="chat-container" class="container" :class="{ active: currentView === 'chat' }">
       <div class="chat-app">
         <!-- 侧边栏 -->
-        <aside class="sidebar">
+        <aside class="sidebar" :class="{ 'mobile-hidden': !showSidebar && isMobile }">
           <div class="sidebar-header">
             <div class="user-info">
               <div class="avatar-container">
@@ -137,7 +137,7 @@
             <!-- 好友列表 -->
             <div id="friends-tab" class="tab-content" :class="{ active: activeTab === 'friends' }">
               <div class="contact-list">
-                <div v-for="friend in friends" :key="friend.id" class="contact-item" :class="{ active: selectedContact?.id === friend.id }" @click="selectContact(friend)">
+                <div v-for="friend in friends" :key="friend.id" class="contact-item" :class="{ active: selectedContact?.id === friend.id }" @click="selectContact(friend); if (isMobile) showSidebar = false">
                   <div class="avatar">
                     <img v-if="friend.avatar_url" :src="`${API_CONFIG.BASE_URL}${friend.avatar_url}`" :alt="friend.name" class="avatar-img">
                     <i v-else class="fas fa-user-circle avatar-icon"></i>
@@ -156,7 +156,7 @@
             <!-- 群聊列表 -->
             <div id="groups-tab" class="tab-content" :class="{ active: activeTab === 'groups' }">
               <div class="contact-list">
-                <div v-for="group in groups" :key="group.id" class="contact-item" :class="{ active: selectedContact?.id === group.id }" @click="selectContact(group)">
+                <div v-for="group in groups" :key="group.id" class="contact-item" :class="{ active: selectedContact?.id === group.id }" @click="selectContact(group); if (isMobile) showSidebar = false">
                   <div class="avatar">
                     <i class="fas fa-users"></i>
                   </div>
@@ -189,16 +189,21 @@
         </aside>
         
         <!-- 聊天区域 -->
-        <main class="chat-main">
+        <main class="chat-main" :class="{ 'full-width': !showSidebar && isMobile }">
           <div class="chat-header">
-            <div class="contact-info">
-              <div class="avatar">
-                <img v-if="selectedContact?.avatar_url" :src="`${API_CONFIG.BASE_URL}${selectedContact.avatar_url}`" :alt="selectedContact.name" class="avatar-img">
-                <i v-else class="fas fa-user-circle avatar-icon"></i>
-              </div>
-              <div class="contact-details">
-                <h3 id="chat-contact-name">{{ selectedContact?.name || '请选择一个好友或群聊' }}</h3>
-                <span id="chat-contact-status" class="status">{{ selectedContact?.status }}</span>
+            <div class="chat-header-left">
+              <button v-if="isMobile" class="btn-icon menu-toggle" @click="showSidebar = !showSidebar">
+                <i class="fas fa-bars"></i>
+              </button>
+              <div class="contact-info">
+                <div class="avatar">
+                  <img v-if="selectedContact?.avatar_url" :src="`${API_CONFIG.BASE_URL}${selectedContact.avatar_url}`" :alt="selectedContact.name" class="avatar-img">
+                  <i v-else class="fas fa-user-circle avatar-icon"></i>
+                </div>
+                <div class="contact-details">
+                  <h3 id="chat-contact-name">{{ selectedContact?.name || '请选择一个好友或群聊' }}</h3>
+                  <span id="chat-contact-status" class="status">{{ selectedContact?.status }}</span>
+                </div>
               </div>
             </div>
             <div class="chat-actions">
@@ -616,6 +621,8 @@ export default defineComponent({
 
     const serverConnected = ref(false)
     const isDarkMode = ref(false)
+    const isMobile = ref(window.innerWidth < 768)
+    const showSidebar = ref(true)
 
     // 切换主题
     const toggleTheme = () => {
@@ -832,6 +839,14 @@ export default defineComponent({
       }
       // 检查服务器连接
       checkServer()
+      
+      // 监听窗口大小变化
+      window.addEventListener('resize', () => {
+        isMobile.value = window.innerWidth < 768
+        if (isMobile.value) {
+          showSidebar.value = false
+        }
+      })
     })
 
     return {
@@ -857,6 +872,8 @@ export default defineComponent({
       friendRequests,
       serverConnected,
       isDarkMode,
+      isMobile,
+      showSidebar,
       avatarInput,
       API_CONFIG,
       // 个人主页相关状态
