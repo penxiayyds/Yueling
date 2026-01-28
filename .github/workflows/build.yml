@@ -328,83 +328,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: macos-build
-          path: ./Yueling/src-tauri/target/release/bundle/dmg
-
-  # 构建iOS
-  build-ios:
-    runs-on: macos-latest
-    needs: build-frontend
-    steps:
-      - uses: actions/checkout@v4
-
-      # 下载前端构建产物
-      - name: Download frontend build
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-build
-          path: ./Yueling/dist
-
-      # 设置Node.js环境
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      # 设置Rust环境
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      # 添加iOS编译目标
-      - name: Add iOS targets
-        run: rustup target add aarch64-apple-ios x86_64-apple-ios aarch64-apple-ios-sim
-
-      # 安装CocoaPods
-      - name: Install CocoaPods
-        run: brew install cocoapods
-
-      # 缓存Rust依赖
-      - name: Cache Rust dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ./Yueling/src-tauri/target
-          key: ${{ runner.os }}-cargo-ios-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-ios-
-
-      # 安装Tauri CLI
-      - name: Install Tauri CLI
-        run: cargo install tauri-cli --version "^2.0.0" --locked
-
-      # 初始化iOS项目
-      - name: Initialize iOS project
-        run: cargo tauri ios init
-        working-directory: ./Yueling
-
-      # 构建iOS (使用模拟器构建，不需要签名)
-      - name: Build iOS Simulator
-        run: cargo tauri ios build --target simulator
-        working-directory: ./Yueling
-        env:
-          # 注意：在实际使用中，需要设置以下环境变量
-          # 1. APPLE_DEVELOPMENT_TEAM: 你的Apple开发者团队ID
-          # 2. 需要配置证书和配置文件
-          # 使用模拟器构建可以暂时跳过签名要求
-          APPLE_DEVELOPMENT_TEAM: "YOUR_TEAM_ID"
-
-      # 上传iOS构建产物
-      - name: Upload iOS build
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-build
-          path: ./Yueling/src-tauri/gen/ios/build/Products/Release-iphonesimulator/yueling.app
+          path: ./Yueling/src-tauri/target/release/bundle/dmg/yueling_0.1.0_x64.dmg
 
   # 创建Release
   create-release:
     runs-on: ubuntu-latest
-    needs: [build-backend-ubuntu, build-backend-windows, build-android, build-linux, build-windows, build-macos, build-ios]
+    needs: [build-backend-ubuntu, build-backend-windows, build-android, build-linux, build-windows, build-macos]
     permissions:
       contents: write
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -495,14 +424,3 @@ jobs:
           asset_path: ./artifacts/macos-build/yueling_0.1.0_x64.dmg
           asset_name: yueling-${{ github.run_number }}-macos.dmg
           asset_content_type: application/x-apple-diskimage
-
-      # 上传iOS构建产物 (模拟器版本)
-      - name: Upload iOS Simulator Build
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/ios-build/yueling.app
-          asset_name: yueling-${{ github.run_number }}-ios-simulator.app
-          asset_content_type: application/octet-stream
