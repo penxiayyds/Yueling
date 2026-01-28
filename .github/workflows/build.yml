@@ -383,13 +383,15 @@ jobs:
         run: cargo tauri ios init
         working-directory: ./Yueling
 
-      # 构建iOS
-      - name: Build iOS
-        run: cargo tauri ios build
+      # 构建iOS (使用模拟器构建，不需要签名)
+      - name: Build iOS Simulator
+        run: cargo tauri ios build --target simulator
         working-directory: ./Yueling
         env:
-          # 注意：在实际使用中，需要设置APPLE_DEVELOPMENT_TEAM环境变量
-          # 这里仅作为示例，实际构建需要有效的开发者证书
+          # 注意：在实际使用中，需要设置以下环境变量
+          # 1. APPLE_DEVELOPMENT_TEAM: 你的Apple开发者团队ID
+          # 2. 需要配置证书和配置文件
+          # 使用模拟器构建可以暂时跳过签名要求
           APPLE_DEVELOPMENT_TEAM: "YOUR_TEAM_ID"
 
       # 上传iOS构建产物
@@ -397,7 +399,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ios-build
-          path: ./Yueling/src-tauri/gen/ios/build/Products/Release-iphoneos/yueling.ipa
+          path: ./Yueling/src-tauri/gen/ios/build/Products/Release-iphonesimulator/yueling.app
 
   # 创建Release
   create-release:
@@ -494,13 +496,13 @@ jobs:
           asset_name: yueling-${{ github.run_number }}-macos.dmg
           asset_content_type: application/x-apple-diskimage
 
-      # 上传iOS构建产物
-      - name: Upload iOS IPA
+      # 上传iOS构建产物 (模拟器版本)
+      - name: Upload iOS Simulator Build
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./artifacts/ios-build
-          asset_name: yueling-${{ github.run_number }}-ios.ipa
+          asset_name: yueling-${{ github.run_number }}-ios-simulator.app
           asset_content_type: application/octet-stream
